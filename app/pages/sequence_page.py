@@ -54,7 +54,7 @@ class SequencePage(Page):
         self.analyze_btn.clicked.connect(self._analyze)
         clear_btn = QPushButton("Tozalash")
         clear_btn.setObjectName("Ghost")
-        clear_btn.clicked.connect(lambda: self.editor.clear())
+        clear_btn.clicked.connect(self._clear_all)
         self.status = QLabel("")
         self.status.setObjectName("Dim")
         btn_row.addWidget(self.analyze_btn)
@@ -99,6 +99,17 @@ class SequencePage(Page):
         self.analyze_btn.setEnabled(False)
         self.status.setText("Hisoblanmoqda…")
         self._runner.run(self._compute, raw, on_done=self._show, on_error=self._error)
+
+    def _clear_all(self):
+        """Tozalash — sekvensiya matni, plitkalar, grafiklar va tafsilotlar."""
+        self.editor.clear()
+        for t in self.tiles.values():
+            t.set_value("—")
+        self.chart_base.clear()
+        self.chart_gc.clear()
+        self._clear_details()
+        self.status.setText("")
+        self.status.setStyleSheet("")
 
     @staticmethod
     def _compute(raw: str) -> dict:

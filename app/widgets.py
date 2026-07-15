@@ -16,6 +16,9 @@ from PySide6.QtWidgets import (
 
 from .theme import COLORS
 
+# Grafik panelining sobit balandligi (kenglikка bog'liq emas — feedback loop yo'q)
+CHART_H = 360
+
 
 def add_shadow(widget: QWidget, blur: int = 28, y: int = 8, alpha: int = 120):
     """Soya effekti — ATAYLAB o'chirilgan (performance).
@@ -117,12 +120,14 @@ class ChartView(QFrame):
         self._img = _ClickLabel("Grafik shu yerda ko'rinadi")
         self._img.setObjectName("Muted")
         self._img.setAlignment(Qt.AlignCenter)
-        self._img.setMinimumHeight(260)
         self._img.setStyleSheet(
             "background: #ffffff; border-radius: 10px; padding: 6px; color: #64748b;")
-        self._img.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # SOBIT balandlik — kenglikка bog'liq emas, layout feedback loop yo'q.
+        # Rasm shu panel ichiga KeepAspectRatio bilan joylashadi (batafsil: ⤢ tugma).
+        self._img.setFixedHeight(CHART_H)
+        self._img.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._img.clicked.connect(self._enlarge)
-        lay.addWidget(self._img, 1)
+        lay.addWidget(self._img)
 
         self._caption = QLabel("")
         self._caption.setObjectName("Dim")
@@ -156,9 +161,11 @@ class ChartView(QFrame):
     def clear(self, message: str = "Grafik shu yerda ko'rinadi"):
         self._pixmap = None
         self._png = None
+        self._last_w = 0
         self._img.setPixmap(QPixmap())
         self._img.setText(message)
         self._img.setCursor(Qt.ArrowCursor)
+        # balandlik sobit (CHART_H) bo'lib qoladi — placeholder ham shu balandlikda
         self._caption.hide()
         self._title.setText("")
         for b in self._btns:
@@ -192,7 +199,11 @@ class ChartView(QFrame):
             if abs(w - self._last_w) < 4:
                 return
             self._last_w = w
-            self._img.setPixmap(self._pixmap.scaledToWidth(w, Qt.SmoothTransformation))
+            # SOBIT balandlik ichiga aspect saqlab joylaymiz — balandlik o'zgarmaydi
+            scaled = self._pixmap.scaled(
+                w, self._img.height() - 10,
+                Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self._img.setPixmap(scaled)
             self._img.setText("")
 
     def resizeEvent(self, event):
