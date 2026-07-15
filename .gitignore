@@ -1,0 +1,58 @@
+# ==== Python ====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ==== Virtual environments ====
+.venv/
+venv/
+env/
+ENV/
+
+# ==== PyInstaller build artefaktlari ====
+build/
+dist/
+*.manifest
+
+# ==== Ikona oraliq fayllari (icon.png/icon.icns saqlanadi) ====
+app/assets/icon.iconset/
+app/assets/icon.ico
+
+# ==== Yaratilgan hisobotlar / natijalar (manba .py fayllarini QAMRAMAYDI) ====
+aida_hisobot.xlsx
+aida_hisobot.pdf
+aida_hisobot.docx
+aida_anova.xlsx
+aida_anova.docx
+aida_demo.xlsx
+aida_demo.pdf
+aida_demo.docx
+*_natija.xlsx
+
+# ==== Maxfiy ma'lumot (hech qachon commit qilinmasin) ====
+*.p8
+*.pem
+*.key
+.env
+.env.*
+
+# ==== macOS ====
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# ==== IDE / muharrirlar ====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ==== Matplotlib / boshqa kesh ====
+.matplotlib/

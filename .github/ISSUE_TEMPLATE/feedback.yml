@@ -1,0 +1,56 @@
+name: "💡 Fikr / Taklif (Feedback)"
+description: Yangi funksiya, yaxshilash yoki umumiy fikr-mulohaza
+title: "[Feedback]: "
+labels: ["enhancement", "feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fikringiz AIDA'ni yaxshilashga yordam beradi. Rahmat!
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Fikr turi
+      options:
+        - Yangi funksiya taklifi
+        - Mavjud funksiyani yaxshilash
+        - Interfeys / dizayn
+        - Statistik metod / tahlil
+        - Hujjatlar / tarjima
+        - Boshqa
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Taklifingiz
+      description: Nimani qo'shish yoki o'zgartirish kerak?
+      placeholder: Masalan, Assotsiatsiya sahifasiga Venn diagramma qo'shilsa…
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Nima uchun foydali?
+      description: Bu qanday muammoni hal qiladi yoki ishni qanday osonlashtiradi?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Qaysi modulga tegishli?
+      options:
+        - Sekvensiya
+        - Populyatsiya
+        - Genomika
+        - Assotsiatsiya
+        - ANOVA / RPC
+        - Tushuntirish
+        - Hisobot
+        - Umumiy / butun ilova
+    validations:
+      required: false

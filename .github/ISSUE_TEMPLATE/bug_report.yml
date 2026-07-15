@@ -1,0 +1,77 @@
+name: "🐛 Xatolik (Bug)"
+description: Ilovadagi xatolik yoki noto'g'ri natija haqida xabar bering
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Xatolik haqida xabar berganingiz uchun rahmat! Iltimos, quyidagilarni to'ldiring.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Nima bo'ldi?
+      description: Xatolikni aniq tasvirlab bering.
+      placeholder: Masalan, ANOVA sahifasida fayl yuklaganimda ilova yopilib qoldi…
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Qadamlar (qanday takrorlash mumkin)
+      description: Xatolikni qayta chiqarish uchun qadamlar.
+      placeholder: |
+        1. Assotsiatsiya sahifasini oching
+        2. "Fayl yuklash" ni bosing
+        3. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Nima bo'lishi kerak edi?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Qaysi modul?
+      options:
+        - Sekvensiya
+        - Populyatsiya
+        - Genomika
+        - Assotsiatsiya
+        - ANOVA / RPC
+        - Tushuntirish
+        - Hisobot
+        - Boshqa / bilmayman
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operatsion tizim
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: AIDA versiyasi
+      placeholder: "1.0.0"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Xato matni / skrinshot
+      description: Agar xato xabari yoki skrinshot bo'lsa, shu yerga qo'ying.
+      render: shell

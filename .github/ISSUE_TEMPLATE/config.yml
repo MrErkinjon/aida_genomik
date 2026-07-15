@@ -1,0 +1,6 @@
+# Bo'sh (blank) issue'ni o'chiramiz — foydalanuvchi shablon tanlashi shart
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Savol / muhokama
+    url: https://github.com/MrErkinjon/aida_genomik/discussions
+    about: Umumiy savollar va muhokama uchun (bug emas)
