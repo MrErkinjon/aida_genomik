@@ -67,7 +67,7 @@ def build_qss() -> str:
         outline: none;
     }}
 
-    QMainWindow, QWidget#Root {{
+    QMainWindow, QWidget#Root, QDialog {{
         background-color: {c['bg']};
     }}
 

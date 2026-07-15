@@ -22,7 +22,11 @@ from PySide6.QtWidgets import (
     QStackedWidget, QVBoxLayout, QWidget,
 )
 
+from . import updater
+from .releases_dialog import ReleasesDialog
 from .theme import COLORS, build_qss
+from .version import __version__
+from .workers import TaskRunner
 
 # Navigatsiya: (kalit, belgi, nom, tavsif)
 NAV = [
@@ -54,7 +58,7 @@ class PlaceholderPage(QWidget):
 
 
 class Sidebar(QWidget):
-    def __init__(self, on_select):
+    def __init__(self, on_select, on_updates=None):
         super().__init__()
         self.setObjectName("Sidebar")
         self.setFixedWidth(232)
@@ -84,12 +88,33 @@ class Sidebar(QWidget):
             lay.addWidget(btn)
 
         lay.addStretch(1)
+
+        # Yangilanishlar tugmasi
+        self.update_btn = QPushButton("  ⬆   Yangilanishlar")
+        self.update_btn.setObjectName("NavButton")
+        self.update_btn.setCursor(Qt.PointingHandCursor)
+        if on_updates:
+            self.update_btn.clicked.connect(on_updates)
+        lay.addWidget(self.update_btn)
+
+        self.version_lbl = QLabel(f"AIDA v{__version__}")
+        self.version_lbl.setObjectName("Dim")
+        lay.addWidget(self.version_lbl)
+
         foot = QLabel("Faqat ma'lumot uchun.\nTashxis qo'ymaydi.")
         foot.setObjectName("Dim")
         lay.addWidget(foot)
 
     def select(self, idx: int):
         self.group.button(idx).setChecked(True)
+
+    def set_update_available(self, tag: str):
+        """Yangilanish topilganda tugmani ajratib ko'rsatadi."""
+        self.update_btn.setText(f"  ⬆   Yangilanish bor: {tag}")
+        self.update_btn.setStyleSheet(
+            f"QPushButton#NavButton {{ color: {COLORS['success']}; "
+            f"background-color: rgba(16,185,129,0.12); font-weight: 700; }}")
+        self.version_lbl.setText(f"AIDA v{__version__} — yangi: {tag}")
 
 
 class MainWindow(QWidget):
@@ -105,7 +130,7 @@ class MainWindow(QWidget):
         root.setSpacing(0)
 
         self.stack = QStackedWidget()
-        self.sidebar = Sidebar(self._go)
+        self.sidebar = Sidebar(self._go, self._open_releases)
         root.addWidget(self.sidebar)
         root.addWidget(self.stack, 1)
 
@@ -115,6 +140,18 @@ class MainWindow(QWidget):
         self._go(0)
         self._add_shortcuts()
         self._center()
+
+        # avto-update: ishga tushganda fon'da tekshiramiz (UI qotmaydi)
+        self._update_data: dict | None = None
+        self._update_runner = TaskRunner()
+        self._update_runner.run(
+            updater.check_for_update, timeout=6,
+            on_done=self._on_update_check, on_error=lambda e: None)
+
+    def closeEvent(self, event):
+        """Yopilishdan oldin fon tekshiruv oqimini toza to'xtatadi."""
+        self._update_runner.wait(2000)
+        super().closeEvent(event)
 
     def _add_shortcuts(self):
         """⌘1…⌘5 — sahifalar orasida tez almashish."""
@@ -164,6 +201,16 @@ class MainWindow(QWidget):
 
     def _go(self, idx: int):
         self.stack.setCurrentIndex(idx)
+
+    def _on_update_check(self, data: dict):
+        """Fon tekshiruvi natijasi — yangilanish bo'lsa sidebar'ni belgilaydi."""
+        self._update_data = data
+        if data.get("update_available") and data.get("latest"):
+            self.sidebar.set_update_available(data["latest"]["tag"])
+
+    def _open_releases(self):
+        """Yangilanishlar oynasini ochadi (tekshiruv natijasi tayyor bo'lsa qayta ishlatadi)."""
+        ReleasesDialog(self, preloaded=self._update_data).exec()
 
 
 def _icon_path() -> str | None:

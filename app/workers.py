@@ -64,3 +64,18 @@ class TaskRunner:
         self._worker.failed.connect(self._thread.quit)
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
+
+    def is_running(self) -> bool:
+        try:
+            return self._thread is not None and self._thread.isRunning()
+        except RuntimeError:  # C++ obyekt allaqachon o'chirilgan
+            return False
+
+    def wait(self, ms: int = 3000):
+        """Oqim tugashini (yoki timeout'ni) kutadi — toza yopilish uchun."""
+        try:
+            if self._thread is not None and self._thread.isRunning():
+                self._thread.quit()
+                self._thread.wait(ms)
+        except RuntimeError:  # allaqachon tugagan/o'chirilgan
+            pass
