@@ -18,13 +18,13 @@ from .theme import COLORS
 
 
 def add_shadow(widget: QWidget, blur: int = 28, y: int = 8, alpha: int = 120):
-    """Kartochkaga yumshoq soya beradi (chuqurlik hissi)."""
-    eff = QGraphicsDropShadowEffect(widget)
-    eff.setBlurRadius(blur)
-    eff.setXOffset(0)
-    eff.setYOffset(y)
-    eff.setColor(QColor(0, 0, 0, alpha))
-    widget.setGraphicsEffect(eff)
+    """Soya effekti — ATAYLAB o'chirilgan (performance).
+
+    QGraphicsDropShadowEffect har repaint/scroll/resize'da qayta hisoblanadi
+    va ko'p bo'lsa (o'nlab kartochka) interfeys qotib qoladi. Chuqurlik hissi
+    endi QSS chegara + fon farqi orqali beriladi (tez va toza tekis dizayn).
+    """
+    return  # no-op — freeze'ning oldini olish uchun
 
 
 class Card(QFrame):
@@ -133,12 +133,14 @@ class ChartView(QFrame):
         self._pixmap: QPixmap | None = None
         self._png: bytes | None = None
         self._chart_title = "grafik"
+        self._last_w = 0
 
     def show_chart(self, png: bytes, title: str = "", caption: str = ""):
         pm = QPixmap()
         pm.loadFromData(png, "PNG")
         self._pixmap = pm
         self._png = png
+        self._last_w = 0  # yangi grafik — qayta masshtablansin
         self._chart_title = title or "grafik"
         self._img.setCursor(Qt.PointingHandCursor)
         for b in self._btns:
@@ -186,6 +188,10 @@ class ChartView(QFrame):
     def _rescale(self):
         if self._pixmap and not self._pixmap.isNull():
             w = max(self._img.width() - 12, 200)
+            # kenglik deyarli o'zgarmasa qayta masshtablamaymiz (resize'da tejamkorlik)
+            if abs(w - self._last_w) < 4:
+                return
+            self._last_w = w
             self._img.setPixmap(self._pixmap.scaledToWidth(w, Qt.SmoothTransformation))
             self._img.setText("")
 
