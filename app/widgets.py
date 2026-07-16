@@ -222,8 +222,40 @@ class _ClickLabel(QLabel):
         super().mousePressEvent(event)
 
 
+class _PanCanvas(QLabel):
+    """Kursor bilan surib bo'ladigan rasm maydoni (drag-to-pan)."""
+
+    def __init__(self, scroll: QScrollArea):
+        super().__init__()
+        self._scroll = scroll
+        self._start = None
+        self.setCursor(Qt.OpenHandCursor)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._start = event.globalPosition().toPoint()
+            self.setCursor(Qt.ClosedHandCursor)
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self._start is not None:
+            g = event.globalPosition().toPoint()
+            delta = g - self._start
+            self._start = g
+            h = self._scroll.horizontalScrollBar()
+            v = self._scroll.verticalScrollBar()
+            h.setValue(h.value() - delta.x())
+            v.setValue(v.value() - delta.y())
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self._start = None
+        self.setCursor(Qt.OpenHandCursor)
+        event.accept()
+
+
 class ChartDialog(QDialog):
-    """Grafikni to'liq oynada zoom/pan bilan ko'rish + saqlash."""
+    """Grafikni to'liq oynada zoom + kursor bilan surish (pan) + saqlash."""
 
     def __init__(self, pixmap: QPixmap, png: bytes | None, title: str, parent=None):
         super().__init__(parent)
@@ -253,6 +285,9 @@ class ChartDialog(QDialog):
             b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(slot)
             bar.addWidget(b)
+        hint = QLabel("🖐 sichqoncha bilan suring · ⚲ g'ildirak bilan zoom")
+        hint.setObjectName("Dim")
+        bar.addWidget(hint)
         bar.addStretch(1)
         self._zoom_lbl = QLabel("100%")
         self._zoom_lbl.setObjectName("Dim")
@@ -264,12 +299,12 @@ class ChartDialog(QDialog):
         bar.addWidget(save)
         lay.addLayout(bar)
 
-        # zoom qilinadigan rasm (scroll ichida)
+        # zoom + surish qilinadigan rasm (scroll ichida)
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(False)
         self._scroll.setAlignment(Qt.AlignCenter)
         self._scroll.setStyleSheet("background: #ffffff; border-radius: 8px;")
-        self._canvas = QLabel()
+        self._canvas = _PanCanvas(self._scroll)   # kursor bilan surish
         self._canvas.setAlignment(Qt.AlignCenter)
         self._scroll.setWidget(self._canvas)
         lay.addWidget(self._scroll, 1)
