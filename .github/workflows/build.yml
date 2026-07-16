@@ -70,13 +70,17 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  # Teg push qilinganda barcha platformalarni release'ga biriktiradi
+  # Teg push qilinganda relizni PUBLIC repo'ga (aida_genomika_releases) chiqaradi.
+  # Kod private repo'da qoladi; foydalanuvchilar public repo'dan yuklab oladi.
   release:
-    name: Release
+    name: Release (public repo)
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
+      - name: Kod (CHANGELOG uchun)
+        uses: actions/checkout@v4
+
       - name: Artefaktlarni yuklab olish
         uses: actions/download-artifact@v4
         with:
@@ -92,8 +96,14 @@ jobs:
           cd ..
           ls -la *.zip
 
-      - name: GitHub Release
+      - name: Public repo'ga Release
         uses: softprops/action-gh-release@v2
         with:
+          # RELEASES_TOKEN — public repo'ga 'Contents: write' huquqli PAT (secret).
+          token: ${{ secrets.RELEASES_TOKEN }}
+          repository: MrErkinjon/aida_genomika_releases
+          tag_name: ${{ github.ref_name }}
+          name: AIDA ${{ github.ref_name }}
+          body_path: CHANGELOG.md
           files: "*.zip"
-          generate_release_notes: true
+          make_latest: "true"
