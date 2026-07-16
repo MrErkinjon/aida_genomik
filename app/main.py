@@ -22,8 +22,9 @@ from PySide6.QtWidgets import (
     QStackedWidget, QVBoxLayout, QWidget,
 )
 
-from . import updater
+from . import settings, updater
 from .releases_dialog import ReleasesDialog
+from .settings_dialog import SettingsDialog
 from .theme import COLORS, build_qss
 from .version import __version__
 from .workers import TaskRunner
@@ -58,7 +59,7 @@ class PlaceholderPage(QWidget):
 
 
 class Sidebar(QWidget):
-    def __init__(self, on_select, on_updates=None):
+    def __init__(self, on_select, on_updates=None, on_settings=None):
         super().__init__()
         self.setObjectName("Sidebar")
         self.setFixedWidth(232)
@@ -90,6 +91,13 @@ class Sidebar(QWidget):
         lay.addStretch(1)
 
         # Yangilanishlar tugmasi
+        settings_btn = QPushButton("  ⚙   Sozlamalar")
+        settings_btn.setObjectName("NavButton")
+        settings_btn.setCursor(Qt.PointingHandCursor)
+        if on_settings:
+            settings_btn.clicked.connect(on_settings)
+        lay.addWidget(settings_btn)
+
         self.update_btn = QPushButton("  ⬆   Yangilanishlar")
         self.update_btn.setObjectName("NavButton")
         self.update_btn.setCursor(Qt.PointingHandCursor)
@@ -130,7 +138,7 @@ class MainWindow(QWidget):
         root.setSpacing(0)
 
         self.stack = QStackedWidget()
-        self.sidebar = Sidebar(self._go, self._open_releases)
+        self.sidebar = Sidebar(self._go, self._open_releases, self._open_settings)
         root.addWidget(self.sidebar)
         root.addWidget(self.stack, 1)
 
@@ -139,7 +147,12 @@ class MainWindow(QWidget):
         self.sidebar.select(0)
         self._go(0)
         self._add_shortcuts()
-        self._center()
+        # oyna holatini tiklash (yo'q bo'lsa markazga)
+        geom = settings.window_geometry()
+        if geom is not None:
+            self.restoreGeometry(geom)
+        else:
+            self._center()
 
         # avto-update: ishga tushganda fon'da tekshiramiz (UI qotmaydi)
         self._update_data: dict | None = None
@@ -149,9 +162,17 @@ class MainWindow(QWidget):
             on_done=self._on_update_check, on_error=lambda e: None)
 
     def closeEvent(self, event):
-        """Yopilishdan oldin fon tekshiruv oqimini toza to'xtatadi."""
+        """Yopilishdan oldin oyna holatini saqlaydi va fon oqimini to'xtatadi."""
+        settings.set_window_geometry(self.saveGeometry())
         self._update_runner.wait(2000)
         super().closeEvent(event)
+
+    def _open_settings(self):
+        SettingsDialog(self, on_theme_changed=self._on_theme_changed).exec()
+
+    def _on_theme_changed(self, name: str):
+        # QSS qayta qo'llandi; sidebar tanlangan holatini yangilaymiz
+        self.sidebar.select(self.stack.currentIndex())
 
     def _add_shortcuts(self):
         """⌘1…⌘5 — sahifalar orasida tez almashish."""
@@ -222,8 +243,12 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("AIDA")
     app.setApplicationDisplayName("AIDA")
-    app.setStyleSheet(build_qss())
+    # saqlangan tema va Claude API kalitini qo'llaymiz
+    app.setStyleSheet(build_qss(settings.theme()))
     app.setFont(QFont("SF Pro Text", 10))
+    _saved_key = settings.api_key()
+    if _saved_key and not os.environ.get("ANTHROPIC_API_KEY"):
+        os.environ["ANTHROPIC_API_KEY"] = _saved_key
 
     icon = _icon_path()
     if icon:

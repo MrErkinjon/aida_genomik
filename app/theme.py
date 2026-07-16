@@ -11,33 +11,38 @@ from __future__ import annotations
 # RANG PALITRASI  (dark, "ultra" ilmiy uslub)
 # =====================================================================
 
-COLORS = {
-    # fonlar
-    "bg": "#0b1120",          # eng orqa fon (deep navy)
-    "surface": "#111a2e",     # panel/sidebar
-    "card": "#16213a",        # kartochka
-    "card_hover": "#1c2b49",
-    "border": "#243350",
-    "border_soft": "#1b2740",
-    # matn
-    "text": "#e8eefc",
-    "text_muted": "#93a4c4",
-    "text_dim": "#5f6f8f",
-    # brend / aksentlar (backend PALETTE bilan mos)
-    "primary": "#3b82f6",
-    "primary_hi": "#60a5fa",
-    "primary_dim": "#1e3a8a",
-    "secondary": "#8b5cf6",
-    "success": "#10b981",
-    "warning": "#f59e0b",
-    "danger": "#ef4444",
-    "info": "#06b6d4",
-    # nukleotid ranglari (grafiklar bilan mos)
-    "A": "#10b981",
-    "T": "#ef4444",
-    "G": "#3b82f6",
-    "C": "#f59e0b",
+# Aksent va nukleotid ranglari — ikkala temada bir xil
+_ACCENTS = {
+    "primary": "#3b82f6", "primary_hi": "#60a5fa", "primary_dim": "#1e3a8a",
+    "secondary": "#8b5cf6", "success": "#10b981", "warning": "#f59e0b",
+    "danger": "#ef4444", "info": "#06b6d4",
+    "A": "#10b981", "T": "#ef4444", "G": "#3b82f6", "C": "#f59e0b",
 }
+
+COLORS_DARK = {
+    "bg": "#0b1120", "surface": "#111a2e", "card": "#16213a",
+    "card_hover": "#1c2b49", "border": "#243350", "border_soft": "#1b2740",
+    "text": "#e8eefc", "text_muted": "#93a4c4", "text_dim": "#5f6f8f",
+    **_ACCENTS,
+}
+
+COLORS_LIGHT = {
+    "bg": "#eef2f8", "surface": "#ffffff", "card": "#ffffff",
+    "card_hover": "#f1f5f9", "border": "#dfe6ef", "border_soft": "#eef2f7",
+    "text": "#0f1e34", "text_muted": "#5a6b85", "text_dim": "#94a3b8",
+    "primary_dim": "#dbe6fb",   # yorug'da och ko'k (checked fon uchun)
+    **{k: v for k, v in _ACCENTS.items() if k != "primary_dim"},
+}
+
+# Faol palitra (o'rniga mutatsiya qilinadi — barcha 'from theme import COLORS' ko'radi)
+COLORS = dict(COLORS_DARK)
+
+
+def apply_theme(name: str):
+    """Faol palitrani almashtiradi (yangi widget'lar yangi rangda quriladi)."""
+    palette = COLORS_LIGHT if name == "light" else COLORS_DARK
+    COLORS.clear()
+    COLORS.update(palette)
 
 # Modullar uchun aksent (sidebar / sahifa sarlavhalari)
 MODULE_ACCENT = {
@@ -58,7 +63,9 @@ MONO_FAMILY = "SF Mono, Menlo, Consolas, monospace"
 # GLOBAL QSS
 # =====================================================================
 
-def build_qss() -> str:
+def build_qss(theme_name: str | None = None) -> str:
+    if theme_name:
+        apply_theme(theme_name)
     c = COLORS
     return f"""
     * {{
