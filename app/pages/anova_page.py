@@ -12,9 +12,11 @@ import sys
 import aida_anova as av
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
+    QComboBox, QFileDialog, QHBoxLayout, QLabel, QProgressBar, QPushButton,
+    QVBoxLayout, QWidget,
 )
 
+from .. import settings
 from ..theme import COLORS, MODULE_ACCENT
 from ..widgets import Card, ChartView, StatTile, make_table, stat_row
 from ..workers import TaskRunner
@@ -33,8 +35,9 @@ class AnovaPage(Page):
         self._runner = TaskRunner()
         self._chart_runner = TaskRunner()
         self._results: list = []
-        self._out_dir = os.path.expanduser("~/Desktop")
+        self._out_dir = settings.output_dir()
         self._build()
+        self._refresh_recent()
 
     def _build(self):
         # Yuklash
@@ -57,6 +60,24 @@ class AnovaPage(Page):
         row.addWidget(self.load_btn)
         row.addWidget(self.file_lbl, 1)
         load_card.add_layout(row)
+
+        # oxirgi fayllar + drag-drop eslatma
+        rrow = QHBoxLayout()
+        self.recent_cb = QComboBox()
+        self.recent_cb.setMinimumWidth(220)
+        self.recent_cb.activated.connect(self._open_recent)
+        rrow.addWidget(QLabel("Oxirgi:"))
+        rrow.addWidget(self.recent_cb)
+        drop_hint = QLabel("yoki faylni oynaga sudrab tashlang")
+        drop_hint.setObjectName("Dim")
+        rrow.addWidget(drop_hint)
+        rrow.addStretch(1)
+        load_card.add_layout(rrow)
+
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)   # noaniq (indeterminate)
+        self.progress.hide()
+        load_card.add(self.progress)
         self.status = QLabel("")
         self.status.setObjectName("Dim")
         load_card.add(self.status)
@@ -120,20 +141,43 @@ class AnovaPage(Page):
 
     def _pick_file(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "RPC fayl", "", "Jadval (*.xlsx *.xls *.csv);;Barchasi (*)")
-        if not path:
-            return
+            self, "RPC fayl", settings.output_dir(),
+            "Jadval (*.xlsx *.xls *.csv);;Barchasi (*)")
+        if path:
+            self.load_path(path)
+
+    def load_path(self, path: str):
+        """Tashqi chaqiruv uchun (drag-drop / oxirgi fayllar)."""
         self.file_lbl.setText(os.path.basename(path))
+        settings.add_recent(path)
+        self._refresh_recent()
         self._start(path)
+
+    def _refresh_recent(self):
+        self.recent_cb.blockSignals(True)
+        self.recent_cb.clear()
+        recents = settings.recent_files()
+        self.recent_cb.addItem("— oxirgi fayllar —", None)
+        for p in recents:
+            self.recent_cb.addItem(os.path.basename(p), p)
+        self.recent_cb.setEnabled(bool(recents))
+        self.recent_cb.blockSignals(False)
+
+    def _open_recent(self, idx: int):
+        path = self.recent_cb.itemData(idx)
+        if path and os.path.exists(path):
+            self.load_path(path)
 
     def _start(self, source):
         # fayl o'qish + ustun aniqlash + ANOVA — hammasi worker'da (UI qotmaydi)
         self.status.setText("O'qilmoqda va hisoblanmoqda…")
+        self.progress.show()
         self.sample_btn.setEnabled(False)
         self.load_btn.setEnabled(False)
         self._runner.run(_analyze_source, source, on_done=self._done, on_error=self._error)
 
     def _done(self, payload: dict):
+        self.progress.hide()
         self.sample_btn.setEnabled(True)
         self.load_btn.setEnabled(True)
         results = payload["results"]
@@ -188,6 +232,7 @@ class AnovaPage(Page):
         self.means_host.addWidget(make_table(tbl.head(25)))
 
     def _error(self, msg: str):
+        self.progress.hide()
         self.sample_btn.setEnabled(True)
         self.load_btn.setEnabled(True)
         self.status.setText(f"Xato: {msg}")
@@ -199,6 +244,7 @@ class AnovaPage(Page):
         if not d:
             return
         self._out_dir = d
+        settings.set_output_dir(d)
         base = os.path.join(d, "aida_anova")
         try:
             if fmt == "xlsx":

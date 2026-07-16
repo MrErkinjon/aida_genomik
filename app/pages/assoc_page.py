@@ -12,10 +12,11 @@ import sys
 import aida_assoc as asc
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QLabel, QPushButton, QTabWidget,
-    QVBoxLayout, QWidget,
+    QComboBox, QFileDialog, QHBoxLayout, QLabel, QProgressBar, QPushButton,
+    QTabWidget, QVBoxLayout, QWidget,
 )
 
+from .. import settings
 from ..theme import COLORS, MODULE_ACCENT
 from ..widgets import Card, ChartView, StatTile, make_table, stat_row
 from ..workers import TaskRunner
@@ -35,6 +36,7 @@ class AssocPage(Page):
         self._chart_runner = TaskRunner()
         self._data: dict = {}
         self._build()
+        self._refresh_recent()
 
     def _build(self):
         load_card = Card("Ma'lumot")
@@ -56,6 +58,23 @@ class AssocPage(Page):
         row.addWidget(self.load_btn)
         row.addWidget(self.file_lbl, 1)
         load_card.add_layout(row)
+
+        rrow = QHBoxLayout()
+        self.recent_cb = QComboBox()
+        self.recent_cb.setMinimumWidth(220)
+        self.recent_cb.activated.connect(self._open_recent)
+        rrow.addWidget(QLabel("Oxirgi:"))
+        rrow.addWidget(self.recent_cb)
+        drop_hint = QLabel("yoki faylni oynaga sudrab tashlang")
+        drop_hint.setObjectName("Dim")
+        rrow.addWidget(drop_hint)
+        rrow.addStretch(1)
+        load_card.add_layout(rrow)
+
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.hide()
+        load_card.add(self.progress)
         self.status = QLabel("")
         self.status.setObjectName("Dim")
         load_card.add(self.status)
@@ -77,7 +96,7 @@ class AssocPage(Page):
         self.add(self.tabs)
 
         # Eksport
-        self._out_dir = os.path.expanduser("~/Desktop")
+        self._out_dir = settings.output_dir()
         exp_card = Card("Hisobot eksporti")
         ehint = QLabel("Barcha natijalar (QC/PIC, descriptives, MTA, grafiklar) "
                        "bitta publikatsiya-hisobotiga.")
@@ -116,25 +135,49 @@ class AssocPage(Page):
 
     def _pick_file(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Assotsiatsiya fayli (3 varaq)", "", "Excel (*.xlsx *.xls);;Barchasi (*)")
-        if not path:
-            return
+            self, "Assotsiatsiya fayli (3 varaq)", settings.output_dir(),
+            "Excel (*.xlsx *.xls);;Barchasi (*)")
+        if path:
+            self.load_path(path)
+
+    def load_path(self, path: str):
+        """Tashqi chaqiruv (drag-drop / oxirgi fayllar)."""
         self.file_lbl.setText(os.path.basename(path))
+        settings.add_recent(path)
+        self._refresh_recent()
         self._start(path)
+
+    def _refresh_recent(self):
+        self.recent_cb.blockSignals(True)
+        self.recent_cb.clear()
+        recents = settings.recent_files()
+        self.recent_cb.addItem("— oxirgi fayllar —", None)
+        for p in recents:
+            self.recent_cb.addItem(os.path.basename(p), p)
+        self.recent_cb.setEnabled(bool(recents))
+        self.recent_cb.blockSignals(False)
+
+    def _open_recent(self, idx: int):
+        path = self.recent_cb.itemData(idx)
+        if path and os.path.exists(path):
+            self.load_path(path)
 
     def _start(self, source):
         # fayl o'qish + validatsiya + to'liq tahlil — hammasi worker'da
         self.status.setText("O'qilmoqda va tahlil bajarilmoqda (QC, kinship, MTA scan)…")
+        self.progress.show()
         self.sample_btn.setEnabled(False)
         self.load_btn.setEnabled(False)
         self._runner.run(_compute_source, source, on_done=self._done, on_error=self._error)
 
     def _error(self, msg: str):
+        self.progress.hide()
         self.sample_btn.setEnabled(True)
         self.load_btn.setEnabled(True)
         self.status.setText(f"Xato: {msg}")
 
     def _done(self, data: dict):
+        self.progress.hide()
         self.sample_btn.setEnabled(True)
         self.load_btn.setEnabled(True)
         self._data = data
@@ -158,6 +201,7 @@ class AssocPage(Page):
         if not d:
             return
         self._out_dir = d
+        settings.set_output_dir(d)
         self.exp_status.setText("Hisobot tayyorlanmoqda…")
         self._export_runner.run(
             _export_assoc, self._data, os.path.join(d, "aida_assotsiatsiya"), fmt,

@@ -132,6 +132,7 @@ class MainWindow(QWidget):
         self.setWindowTitle("AIDA — Genomika studiyasi")
         self.resize(1240, 820)
         self.setMinimumSize(1040, 680)
+        self.setAcceptDrops(True)   # faylni oynaga sudrab tashlab yuklash
 
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -166,6 +167,27 @@ class MainWindow(QWidget):
         settings.set_window_geometry(self.saveGeometry())
         self._update_runner.wait(2000)
         super().closeEvent(event)
+
+    # ---- Drag & drop: faylni joriy sahifaga yuklaydi ----
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if not urls:
+            return
+        path = urls[0].toLocalFile()
+        page = self._pages.get(self.stack.currentIndex())
+        if hasattr(page, "load_path"):
+            page.load_path(path)
+        else:
+            # faylni qabul qiladigan birinchi sahifaga yo'naltiramiz
+            for i, pg in self._pages.items():
+                if hasattr(pg, "load_path"):
+                    self._select(i)
+                    pg.load_path(path)
+                    break
 
     def _open_settings(self):
         SettingsDialog(self, on_theme_changed=self._on_theme_changed).exec()
