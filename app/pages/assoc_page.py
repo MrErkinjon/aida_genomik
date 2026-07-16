@@ -6,6 +6,8 @@ Backend: aida_assoc
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 
 import aida_assoc as asc
 from PySide6.QtCore import Qt
@@ -74,6 +76,31 @@ class AssocPage(Page):
         self.tabs.addTab(self._tab_overlap[0], "Dala ↔ Lab")
         self.add(self.tabs)
 
+        # Eksport
+        self._out_dir = os.path.expanduser("~/Desktop")
+        exp_card = Card("Hisobot eksporti")
+        ehint = QLabel("Barcha natijalar (QC/PIC, descriptives, MTA, grafiklar) "
+                       "bitta publikatsiya-hisobotiga.")
+        ehint.setObjectName("Dim")
+        ehint.setWordWrap(True)
+        exp_card.add(ehint)
+        erow = QHBoxLayout()
+        self.xlsx_btn = QPushButton("Excel")
+        self.pdf_btn = QPushButton("PDF")
+        self.docx_btn = QPushButton("Word")
+        for b, fmt in ((self.xlsx_btn, "xlsx"), (self.pdf_btn, "pdf"), (self.docx_btn, "docx")):
+            b.setObjectName("Ghost")
+            b.setEnabled(False)
+            b.clicked.connect(lambda _=False, f=fmt: self._export(f))
+            erow.addWidget(b)
+        erow.addStretch(1)
+        exp_card.add_layout(erow)
+        self.exp_status = QLabel("")
+        self.exp_status.setObjectName("Dim")
+        exp_card.add(self.exp_status)
+        self.add(exp_card)
+        self._export_runner = TaskRunner()
+
     def _make_scroll_tab(self):
         w = QWidget()
         lay = QVBoxLayout(w)
@@ -121,6 +148,29 @@ class AssocPage(Page):
         self.status.setText(
             f"Tayyor. Markerlar: {data['qc'].shape[0]}, MTA testlari: "
             f"{len(data['field_mta']) + len(data['lab_mta'])}, FDR-signifikant: {nsig}.")
+        for b in (self.xlsx_btn, self.pdf_btn, self.docx_btn):
+            b.setEnabled(True)
+
+    def _export(self, fmt: str):
+        if not self._data:
+            return
+        d = QFileDialog.getExistingDirectory(self, "Saqlash papkasi", self._out_dir)
+        if not d:
+            return
+        self._out_dir = d
+        self.exp_status.setText("Hisobot tayyorlanmoqda…")
+        self._export_runner.run(
+            _export_assoc, self._data, os.path.join(d, "aida_assotsiatsiya"), fmt,
+            on_done=self._export_done, on_error=self._export_err)
+
+    def _export_done(self, path: str):
+        self.exp_status.setText(f"✓ Saqlandi: {path}")
+        self.exp_status.setStyleSheet(f"color: {COLORS['success']};")
+        _open_folder(os.path.dirname(path))
+
+    def _export_err(self, msg: str):
+        self.exp_status.setText(f"Xato: {msg}")
+        self.exp_status.setStyleSheet(f"color: {COLORS['danger']};")
 
     # ---- Tab 1: QC ----
     def _fill_qc(self):
@@ -277,6 +327,68 @@ class AssocPage(Page):
 
 
 # =====================================================================
+def _export_assoc(data: dict, base: str, fmt: str) -> str:
+    """Assotsiatsiya natijalarini publikatsiya-hisobotiga (Excel/PDF/Word)."""
+    from aida_export import AnalysisReport, Chart, ReportExporter
+
+    rep = AnalysisReport(
+        title="Assotsiativ xaritalash hisoboti",
+        subtitle="SSR marker–trait assotsiatsiyasi (single-marker, kinship-korreksiyali MLM)")
+
+    rep.add_table("Marker sifat nazorati (xulosa)", data["qc_summary"],
+                  text="Polimorfizm, PIC va gen diversity umumiy ko'rsatkichlari.")
+    rep.add_table("Lokuslar bo'yicha QC", data["qc"].to_dict("records"))
+    rep.add_chart(Chart("Traitlar korrelyatsiyasi", data["corr_png"],
+                        "Dala traitlari orasidagi Pearson korrelyatsiyasi."))
+    rep.add_table("Dala traitlari — descriptive statistika", data["field_desc"].to_dict("records"))
+    rep.add_table("Laboratoriya traitlari — descriptive statistika", data["lab_desc"].to_dict("records"))
+    rep.add_chart(Chart("PCA (dala fenotipi)", data["pca_png"]))
+    rep.add_chart(Chart("RIL dendrogrammasi", data["dendro_png"]))
+    rep.add_chart(Chart("Kinship matritsasi", data["kinship_png"],
+                        "Marker asosidagi qarindoshlik — MTA'da korreksiya uchun."))
+
+    hits = data["all_hits"]
+    if len(hits):
+        cols = ["Dataset", "Marker", "Trait", "effect", "R2%", "p_GLM", "p_MLM", "q_FDR", "sig"]
+        cols = [c for c in cols if c in hits.columns]
+        rep.add_table("Ahamiyatli marker–trait assotsiatsiyalari (FDR<0.05)",
+                      hits[cols].to_dict("records"),
+                      text="Genetik xarita yo'qligi sababli single-marker assotsiatsiya "
+                           "(GLM + kinship-korreksiyali MLM), FDR (Benjamini-Hochberg).")
+        # eng kuchli trait uchun Manhattan
+        try:
+            fmta = data["field_mta"]
+            p_col = "p_MLM" if fmta["p_MLM"].notna().any() else "p_GLM"
+            top_trait = hits.sort_values("q_FDR").iloc[0]["Trait"]
+            src_mta = fmta if top_trait in set(fmta["Trait"]) else data["lab_mta"]
+            rep.add_chart(Chart(f"Manhattan — {top_trait}",
+                                asc.manhattan(src_mta, top_trait, p_col)))
+        except Exception:
+            pass
+    else:
+        rep.add_section("Ahamiyatli assotsiatsiyalar",
+                        "FDR chegarasidan o'tgan assotsiatsiya topilmadi.")
+
+    ov = data["overlap"]
+    overlap_tbl = ({m: "dala + lab (barqaror)" for m in sorted(ov["overlap"])}
+                   or {"—": "umumiy marker topilmadi"})
+    rep.add_table("Dala ↔ laboratoriya barqaror markerlari", overlap_tbl,
+                  text="Ikkala sharoitda ham ahamiyatli — MAS uchun eng ishonchli nomzodlar.")
+
+    exporter = ReportExporter(rep)
+    fn = {"xlsx": exporter.to_xlsx, "pdf": exporter.to_pdf, "docx": exporter.to_docx}[fmt]
+    return fn(f"{base}.{fmt}")
+
+
+def _open_folder(folder: str):
+    if sys.platform == "darwin":
+        subprocess.run(["open", folder])
+    elif sys.platform.startswith("win"):
+        os.startfile(folder)  # type: ignore[attr-defined]
+    else:
+        subprocess.run(["xdg-open", folder])
+
+
 def _compute_source(source) -> dict:
     """Fayl (yo'l) yoki tayyor varaqlardan to'liq tahlil (worker oqimida)."""
     if isinstance(source, str):
